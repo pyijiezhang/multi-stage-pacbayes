@@ -1,0 +1,17 @@
+mnist-data/MNIST/raw/train-labels-idx1-ubyte.gz
+mnist-data/MNIST/raw/train-labels-idx1-ubyte
+mnist-data/MNIST/raw/train-images-idx3-ubyte.gz
+mnist-data/MNIST/raw/train-images-idx3-ubyte
+mnist-data/MNIST/raw/t10k-labels-idx1-ubyte.gz
+mnist-data/MNIST/processed/test.pt
+mnist-data/MNIST/processed/training.pt
+mnist-data/MNIST/raw/t10k-images-idx3-ubyte
+mnist-data/MNIST/raw/t10k-images-idx3-ubyte.gz
+mnist-data/MNIST/raw/t10k-labels-idx1-ubyte
+pbb/__pycache__/utils.cpython-38.pyc
+pbb/__pycache__/models.cpython-38.pyc
+pbb/__pycache__/data.cpython-38.pyc
+pbb/__pycache__/bounds.cpython-38.pyc
+pbb/__pycache__/__init__.cpython-38.pyc
+pbb/__init__.py
+.DS_Store
