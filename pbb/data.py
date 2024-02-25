@@ -91,20 +91,20 @@ def loadbatches(
         train_idx = indices[:split]
         train_sampler = SubsetRandomSampler(train_idx)
 
-        set_bound_1batch = torch.utils.data.DataLoader(
-            train, batch_size=len(train_idx), sampler=train_sampler, **loader_kargs
-        )
-        test_1batch = torch.utils.data.DataLoader(
-            test, batch_size=ntest, shuffle=True, **loader_kargs
-        )
         train_loader = torch.utils.data.DataLoader(
             train, batch_size=batch_size, sampler=train_sampler, **loader_kargs
+        )
+        train1_loader = None
+        train2_loader = train_loader
+        train2_1batch_loader = torch.utils.data.DataLoader(
+            train, batch_size=len(train_idx), sampler=train_sampler, **loader_kargs
         )
         test_loader = torch.utils.data.DataLoader(
             test, batch_size=batch_size, shuffle=True, **loader_kargs
         )
-        prior_loader = None
-        set_val_bound = train_loader
+        test_1batch_loader = torch.utils.data.DataLoader(
+            test, batch_size=ntest, shuffle=True, **loader_kargs
+        )
 
     else:
         # reduce training data if needed
@@ -116,41 +116,41 @@ def loadbatches(
         np.random.shuffle(indices)
 
         all_train_sampler = SubsetRandomSampler(indices)
-        train_idx, valid_idx = indices[split:], indices[:split]
-        train_sampler = SubsetRandomSampler(train_idx)
-        valid_sampler = SubsetRandomSampler(valid_idx)
+        train2_idx, train1_idx = indices[split:], indices[:split]
+        train2_sampler = SubsetRandomSampler(train2_idx)
+        train1_sampler = SubsetRandomSampler(train1_idx)
 
-        set_bound_1batch = torch.utils.data.DataLoader(
-            train, batch_size=len(train_idx), sampler=train_sampler, **loader_kargs
-        )
-        set_val_bound = torch.utils.data.DataLoader(
-            train, batch_size=batch_size, sampler=train_sampler, shuffle=False
-        )
-        test_1batch = torch.utils.data.DataLoader(
-            test, batch_size=ntest, shuffle=True, **loader_kargs
-        )
         train_loader = torch.utils.data.DataLoader(
             train, batch_size=batch_size, sampler=all_train_sampler, shuffle=False
         )
-        prior_loader = torch.utils.data.DataLoader(
-            train, batch_size=batch_size, sampler=valid_sampler, shuffle=False
+        train1_loader = torch.utils.data.DataLoader(
+            train, batch_size=batch_size, sampler=train1_sampler, shuffle=False
+        )
+        train2_loader = torch.utils.data.DataLoader(
+            train, batch_size=batch_size, sampler=train2_sampler, shuffle=False
+        )
+        train2_1batch_loader = torch.utils.data.DataLoader(
+            train, batch_size=len(train2_idx), sampler=train2_sampler, **loader_kargs
         )
         test_loader = torch.utils.data.DataLoader(
             test, batch_size=batch_size, shuffle=True, **loader_kargs
         )
+        test_1batch_loader = torch.utils.data.DataLoader(
+            test, batch_size=ntest, shuffle=True, **loader_kargs
+        )
 
-    # train_loader comprises all the data used in training and prior_loader the data used to build
+    # train_loader comprises all the data used in training and train1_loader the data used to build
     # the prior
-    # set_bound_1batch and set_bound are the set of data points used to evaluate the bound.
+    # train2_1batch_loader and set_bound are the set of data points used to evaluate the bound.
     # the only difference between these two is that onf of them is splitted in multiple batches
     # while the 1batch one is only one batch. This is for computational efficiency with some
     # of the large architectures used.
-    # The same is done for test_1batch
+    # The same is done for test_1batch_loader
     return (
         train_loader,
         test_loader,
-        prior_loader,
-        set_bound_1batch,
-        test_1batch,
-        set_val_bound,
+        train1_loader,
+        train2_1batch_loader,
+        test_1batch_loader,
+        train2_loader,
     )

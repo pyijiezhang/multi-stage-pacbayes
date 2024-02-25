@@ -197,7 +197,7 @@ def runexp(
         net0 = NNet4l(dropout_prob=dropout_prob, device=device).to(device)
 
     if prior_type == "rand":
-        train_loader, test_loader, _, val_bound_one_batch, _, val_bound = (
+        train_loader, test_loader, _, train2_1batch_loader, _, train2_loader = (
             data.loadbatches(
                 train,
                 test,
@@ -210,28 +210,33 @@ def runexp(
         )
         errornet0 = testNNet(net0, test_loader, device=device)
     elif prior_type == "learnt":
-        train_loader, test_loader, valid_loader, val_bound_one_batch, _, val_bound = (
-            data.loadbatches(
-                train,
-                test,
-                loader_kargs,
-                batch_size,
-                prior=True,
-                perc_train=perc_train,
-                perc_prior=perc_prior,
-            )
+        (
+            train_loader,
+            test_loader,
+            train1_loader,
+            train2_1batch_loader,
+            _,
+            train2_loader,
+        ) = data.loadbatches(
+            train,
+            test,
+            loader_kargs,
+            batch_size,
+            prior=True,
+            perc_train=perc_train,
+            perc_prior=perc_prior,
         )
         optimizer = optim.SGD(
             net0.parameters(), lr=learning_rate_prior, momentum=momentum_prior
         )
         for epoch in trange(prior_epochs):
             trainNNet(
-                net0, optimizer, epoch, valid_loader, device=device, verbose=verbose
+                net0, optimizer, epoch, train1_loader, device=device, verbose=verbose
             )
         errornet0 = testNNet(net0, test_loader, device=device)
 
     posterior_n_size = len(train_loader.dataset)
-    bound_n_size = len(val_bound.dataset)
+    bound_n_size = len(train2_loader.dataset)
 
     toolarge = False
     train_size = len(train_loader.dataset)
@@ -312,8 +317,8 @@ def runexp(
                     bound,
                     device=device,
                     lambda_var=lambda_var,
-                    train_loader=val_bound,
-                    whole_train=val_bound_one_batch,
+                    train_loader=train2_loader,
+                    whole_train=train2_1batch_loader,
                 )
             )
 
@@ -340,8 +345,8 @@ def runexp(
             bound,
             device=device,
             lambda_var=lambda_var,
-            train_loader=val_bound,
-            whole_train=val_bound_one_batch,
+            train_loader=train2_loader,
+            whole_train=train2_1batch_loader,
         )
     )
 
