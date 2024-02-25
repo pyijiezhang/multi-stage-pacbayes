@@ -17,43 +17,53 @@ def loaddataset(name):
     """
     torch.manual_seed(7)
 
-    if name == 'mnist':
+    if name == "mnist":
         transform = transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+        )
         train = datasets.MNIST(
-            'mnist-data/', train=True, download=True, transform=transform)
+            "mnist-data/", train=True, download=True, transform=transform
+        )
         test = datasets.MNIST(
-            'mnist-data/', train=False, download=True, transform=transform)
-    elif name == 'cifar10':
+            "mnist-data/", train=False, download=True, transform=transform
+        )
+    elif name == "cifar10":
         transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.4914, 0.4822, 0.4465),
-                                  (0.2023, 0.1994, 0.2010)),
-             ])
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                ),
+            ]
+        )
         train = datasets.CIFAR10(
-            './data', train=True, download=True, transform=transform)
+            "./data", train=True, download=True, transform=transform
+        )
         test = datasets.CIFAR10(
-            './data', train=False, download=True, transform=transform)
+            "./data", train=False, download=True, transform=transform
+        )
     else:
-        raise RuntimeError(f'Wrong dataset chosen {name}')
+        raise RuntimeError(f"Wrong dataset chosen {name}")
 
     return train, test
 
 
-def loadbatches(train, test, loader_kargs, batch_size, prior=False, perc_train=1.0, perc_prior=0.2):
+def loadbatches(
+    train, test, loader_kargs, batch_size, prior=False, perc_train=1.0, perc_prior=0.2
+):
     """Function to load the batches for the dataset
 
     Parameters
     ----------
     train : torch dataset object
         train split
-    
+
     test : torch dataset object
-        test split 
+        test split
 
     loader_kargs : dictionary
         loader arguments
-    
+
     batch_size : int
         size of the batch
 
@@ -73,7 +83,7 @@ def loadbatches(train, test, loader_kargs, batch_size, prior=False, perc_train=1
 
     if prior == False:
         indices = list(range(ntrain))
-        split = int(np.round((perc_train)*ntrain))
+        split = int(np.round((perc_train) * ntrain))
         random_seed = 10
         np.random.seed(random_seed)
         np.random.shuffle(indices)
@@ -82,21 +92,25 @@ def loadbatches(train, test, loader_kargs, batch_size, prior=False, perc_train=1
         train_sampler = SubsetRandomSampler(train_idx)
 
         set_bound_1batch = torch.utils.data.DataLoader(
-            train, batch_size=len(train_idx), sampler=train_sampler, **loader_kargs)
+            train, batch_size=len(train_idx), sampler=train_sampler, **loader_kargs
+        )
         test_1batch = torch.utils.data.DataLoader(
-            test, batch_size=ntest, shuffle=True, **loader_kargs)
+            test, batch_size=ntest, shuffle=True, **loader_kargs
+        )
         train_loader = torch.utils.data.DataLoader(
-            train, batch_size=batch_size, sampler=train_sampler, **loader_kargs)
+            train, batch_size=batch_size, sampler=train_sampler, **loader_kargs
+        )
         test_loader = torch.utils.data.DataLoader(
-            test, batch_size=batch_size, shuffle=True, **loader_kargs)
+            test, batch_size=batch_size, shuffle=True, **loader_kargs
+        )
         prior_loader = None
         set_val_bound = train_loader
 
     else:
         # reduce training data if needed
-        new_num_train = int(np.round((perc_train)*ntrain))
+        new_num_train = int(np.round((perc_train) * ntrain))
         indices = list(range(new_num_train))
-        split = int(np.round((perc_prior)*new_num_train))
+        split = int(np.round((perc_prior) * new_num_train))
         random_seed = 10
         np.random.seed(random_seed)
         np.random.shuffle(indices)
@@ -107,17 +121,23 @@ def loadbatches(train, test, loader_kargs, batch_size, prior=False, perc_train=1
         valid_sampler = SubsetRandomSampler(valid_idx)
 
         set_bound_1batch = torch.utils.data.DataLoader(
-            train, batch_size=len(train_idx), sampler=train_sampler, **loader_kargs)
+            train, batch_size=len(train_idx), sampler=train_sampler, **loader_kargs
+        )
         set_val_bound = torch.utils.data.DataLoader(
-            train, batch_size=batch_size, sampler=train_sampler, shuffle=False)
+            train, batch_size=batch_size, sampler=train_sampler, shuffle=False
+        )
         test_1batch = torch.utils.data.DataLoader(
-            test, batch_size=ntest, shuffle=True, **loader_kargs)
+            test, batch_size=ntest, shuffle=True, **loader_kargs
+        )
         train_loader = torch.utils.data.DataLoader(
-            train, batch_size=batch_size, sampler=all_train_sampler, shuffle=False)
+            train, batch_size=batch_size, sampler=all_train_sampler, shuffle=False
+        )
         prior_loader = torch.utils.data.DataLoader(
-            train, batch_size=batch_size, sampler=valid_sampler, shuffle=False)
+            train, batch_size=batch_size, sampler=valid_sampler, shuffle=False
+        )
         test_loader = torch.utils.data.DataLoader(
-            test, batch_size=batch_size, shuffle=True, **loader_kargs)
+            test, batch_size=batch_size, shuffle=True, **loader_kargs
+        )
 
     # train_loader comprises all the data used in training and prior_loader the data used to build
     # the prior
@@ -126,4 +146,11 @@ def loadbatches(train, test, loader_kargs, batch_size, prior=False, perc_train=1
     # while the 1batch one is only one batch. This is for computational efficiency with some
     # of the large architectures used.
     # The same is done for test_1batch
-    return train_loader, test_loader, prior_loader, set_bound_1batch, test_1batch, set_val_bound
+    return (
+        train_loader,
+        test_loader,
+        prior_loader,
+        set_bound_1batch,
+        test_1batch,
+        set_val_bound,
+    )
