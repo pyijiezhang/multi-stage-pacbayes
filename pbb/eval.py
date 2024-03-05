@@ -3,6 +3,7 @@ import numpy as np
 from scipy.stats import binom
 from scipy import optimize
 from math import log
+from tqdm import trange
 
 
 def get_loss_01(pi, input, target, sample=True, clamping=True, pmin=1e-5):
@@ -14,11 +15,9 @@ def get_loss_01(pi, input, target, sample=True, clamping=True, pmin=1e-5):
         A tensor with shape (n_2), where n_2 is the size of the S_2. Each entry is 0 (predict correctly)
         or 1 (predict wrong).
     """
-    pi.eval()
-    with torch.no_grad():
-        outputs = pi(input, sample=sample, clamping=clamping, pmin=pmin)
-        pred = outputs.max(1)[1]
-        loss_01 = (pred != target).long()
+    outputs = pi(input, sample=sample, clamping=clamping, pmin=pmin)
+    pred = outputs.max(1)[1]
+    loss_01 = (pred != target).long()
     return loss_01
 
 
@@ -63,12 +62,12 @@ def mcsampling_delta(
     else:  # approach 3
         sample = True
     # sample from prior
-    for _ in range(mc_samples_pi_S_1):
+    for _ in trange(mc_samples_pi_S_1):
         loss_01_pi_S_1 = get_loss_01(
             pi_S_1, input, target, sample=sample, clamping=clamping, pmin=pmin
         )
         # sample from posterior
-        for _ in range(mc_samples_pi_S):
+        for _ in trange(mc_samples_pi_S):
             loss_01_pi_S = get_loss_01(
                 pi_S, input, target, sample=True, clamping=clamping, pmin=pmin
             )
@@ -98,51 +97,56 @@ def compute_final_stats_risk_delta(
     delta_test=0.01,
 ):
 
+    pi_S.eval()
+    pi_S_1.eval()
+
     n_2 = input.shape[0]
-    kl = pi_S.compute_kl().detach().item()
-    delta_js_expected = mcsampling_delta(
-        pi_S, pi_S_1, mc_samples_pi_S, mc_samples_pi_S_1, input, target
-    )
 
-    inv_2 = 0
-    for i in range(2):
-        inv_1 = solve_kl_sup(
-            delta_js_expected[i],
-            np.log(2 / delta_test) / (mc_samples_pi_S * mc_samples_pi_S_1),
-        )
-        inv_2 += solve_kl_sup(
-            inv_1,
-            (kl + np.log((6 * np.sqrt(n_2)) / delta_test)) / n_2,
+    with torch.no_grad():
+        kl = pi_S.compute_kl().detach().item()
+        delta_js_expected = mcsampling_delta(
+            pi_S, pi_S_1, mc_samples_pi_S, mc_samples_pi_S_1, input, target
         )
 
-    # approach 2
-    if kl_approach3 == None:
-        wrong_net0 = (
-            get_loss_01(
-                pi_S_1, input, target, sample=False, clamping=clamping, pmin=pmin
+        inv_2 = 0
+        for i in range(2):
+            inv_1 = solve_kl_sup(
+                delta_js_expected[i],
+                np.log(2 / delta_test) / (mc_samples_pi_S * mc_samples_pi_S_1),
             )
-            .sum()
-            .item()
-        )
-        binominal_inv = get_binominal_inv(n_2, wrong_net0, delta_test / 3)
-        risk_delta = -1 + inv_2 + binominal_inv
-    else:
-        # approach 3
-        loss_01_pi_0 = 0
-        for _ in range(mc_samples_pi_S_1_approach3):
-            loss_01_pi_0 += (
+            inv_2 += solve_kl_sup(
+                inv_1,
+                (kl + np.log((6 * np.sqrt(n_2)) / delta_test)) / n_2,
+            )
+
+        # approach 2
+        if kl_approach3 == None:
+            wrong_net0 = (
                 get_loss_01(
-                    pi_S_1, input, target, sample=True, clamping=True, pmin=1e-5
+                    pi_S_1, input, target, sample=False, clamping=clamping, pmin=pmin
                 )
-                .float()
-                .mean()
+                .sum()
                 .item()
             )
-        loss_01_pi_0 /= mc_samples_pi_S_1_approach3
-        inv_3 = solve_kl_sup(
-            loss_01_pi_0, (kl_approach3 + np.log((6 * np.sqrt(n)) / delta_test)) / n
-        )
-        risk_delta = -1 + inv_2 + inv_3
+            binominal_inv = get_binominal_inv(n_2, wrong_net0, delta_test / 3)
+            risk_delta = -1 + inv_2 + binominal_inv
+        else:
+            # approach 3
+            loss_01_pi_0 = 0
+            for _ in trange(mc_samples_pi_S_1_approach3):
+                loss_01_pi_0 += (
+                    get_loss_01(
+                        pi_S_1, input, target, sample=True, clamping=True, pmin=1e-5
+                    )
+                    .float()
+                    .mean()
+                    .item()
+                )
+            loss_01_pi_0 /= mc_samples_pi_S_1_approach3
+            inv_3 = solve_kl_sup(
+                loss_01_pi_0, (kl_approach3 + np.log((6 * np.sqrt(n)) / delta_test)) / n
+            )
+            risk_delta = -1 + inv_2 + inv_3
     return risk_delta
 
 
