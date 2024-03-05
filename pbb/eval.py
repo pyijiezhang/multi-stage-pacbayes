@@ -1,7 +1,8 @@
 import torch
-from pbb.bounds import inv_kl
 import numpy as np
 from scipy.stats import binom
+from scipy import optimize
+from math import log
 
 
 def get_loss_01(pi, input, target, sample=True, clamping=True, pmin=1e-5):
@@ -73,7 +74,7 @@ def mcsampling_delta(
             )
             delta_js_mc = get_delta_j(loss_01_pi_S, loss_01_pi_S_1)
             delta_js += delta_js_mc
-    return delta_js / (mc_samples_pi_S * mc_samples_pi_S_1)
+    return delta_js.numpy() / (mc_samples_pi_S * mc_samples_pi_S_1)
 
 
 def get_binominal_inv(n, k, delta):
@@ -98,21 +99,18 @@ def compute_final_stats_risk_delta(
 ):
 
     n_2 = input.shape[0]
-    kl = pi_S.compute_kl()
+    kl = pi_S.compute_kl().detach().item()
     delta_js_expected = mcsampling_delta(
         pi_S, pi_S_1, mc_samples_pi_S, mc_samples_pi_S_1, input, target
     )
 
     inv_2 = 0
     for i in range(2):
-        inv_1 = inv_kl(
+        inv_1 = solve_kl_sup(
             delta_js_expected[i],
             np.log(2 / delta_test) / (mc_samples_pi_S * mc_samples_pi_S_1),
         )
-        # clamp for numerical issue
-        if inv_1 > 0.9999:
-            inv_1 = 0.9999
-        inv_2 += inv_kl(
+        inv_2 += solve_kl_sup(
             inv_1,
             (kl + np.log((6 * np.sqrt(n_2)) / delta_test)) / n_2,
         )
@@ -138,16 +136,46 @@ def compute_final_stats_risk_delta(
                 )
                 .float()
                 .mean()
+                .item()
             )
         loss_01_pi_0 /= mc_samples_pi_S_1_approach3
-        inv_3 = inv_kl(
+        inv_3 = solve_kl_sup(
             loss_01_pi_0, (kl_approach3 + np.log((6 * np.sqrt(n)) / delta_test)) / n
         )
         risk_delta = -1 + inv_2 + inv_3
-    return risk_delta.item()
+    return risk_delta
 
 
 def get_kl_q_p(mu_q, sigma_q, mu_p, sigma_p):
     q = torch.distributions.normal.Normal(mu_q, sigma_q)
     p = torch.distributions.normal.Normal(mu_p, sigma_p)
     return torch.distributions.kl.kl_divergence(q, p).sum().item()
+
+
+def KL(Q, P):
+    """
+    Compute Kullback-Leibler (KL) divergence between distributions Q and P.
+    """
+    return sum([q * log(q / p) if q > 0.0 else 0.0 for q, p in zip(Q, P)])
+
+
+def KL_binomial(q, p):
+    """
+    Compute the KL-divergence between two Bernoulli distributions of probability
+    of success q and p. That is, Q=(q,1-q), P=(p,1-p).
+    """
+    return KL([q, 1.0 - q], [p, 1.0 - p])
+
+
+def solve_kl_sup(q, right_hand_side):
+    """
+    find x such that:
+        kl( q || x ) = right_hand_side
+        x > q
+    """
+    f = lambda x: KL_binomial(q, x) - right_hand_side
+
+    if f(1.0 - 1e-9) <= 0.0:
+        return 1.0 - 1e-9
+    else:
+        return optimize.brentq(f, q, 1.0 - 1e-11)
