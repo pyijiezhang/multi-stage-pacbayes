@@ -1,4 +1,5 @@
 import math
+from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn as nn
@@ -161,7 +162,7 @@ def runexp(
     batch_size : int
         batch size for experiments
     """
-
+    exp_settings = f"{name_data}_{objective}_{prior_type}_{mc_samples}_{kl_penalty}.pt"
     # this makes the initialised prior the same for all bounds
     torch.manual_seed(7)
     np.random.seed(0)
@@ -185,16 +186,25 @@ def runexp(
             # with mnist
             if layers == 9:
                 net0 = CNNet9l(dropout_prob=dropout_prob).to(device)
+                model_name = "CNNet9l"
             elif layers == 13:
                 net0 = CNNet13l(dropout_prob=dropout_prob).to(device)
+                model_name = "CNNet13l"
             elif layers == 15:
                 net0 = CNNet15l(dropout_prob=dropout_prob).to(device)
+                model_name = "CNNet15l"
             else:
                 raise RuntimeError(f"Wrong number of layers {layers}")
         else:
             net0 = CNNet4l(dropout_prob=dropout_prob).to(device)
+            model_name = "CNNet4l"
     else:
         net0 = NNet4l(dropout_prob=dropout_prob, device=device).to(device)
+        model_name = "NNet4l"
+
+    # save net0
+    dir_net0 = f"./saved_models/net0_{model_name}_" + exp_settings
+    torch.save(net0, dir_net0)
 
     if prior_type == "rand":
         train_loader, test_loader, _, train2_1batch_loader, _, train2_loader = (
@@ -249,20 +259,24 @@ def runexp(
                 net = ProbCNNet9l(
                     rho_prior, prior_dist=prior_dist, device=device, init_net=net0
                 ).to(device)
+                model_name = "ProbCNNet9l"
             elif layers == 13:
                 net = ProbCNNet13l(
                     rho_prior, prior_dist=prior_dist, device=device, init_net=net0
                 ).to(device)
+                model_name = "ProbCNNet13l"
             elif layers == 15:
                 net = ProbCNNet15l(
                     rho_prior, prior_dist=prior_dist, device=device, init_net=net0
                 ).to(device)
+                model_name = "ProbCNNet15l"
             else:
                 raise RuntimeError(f"Wrong number of layers {layers}")
         else:
             net = ProbCNNet4l(
                 rho_prior, prior_dist=prior_dist, device=device, init_net=net0
             ).to(device)
+            model_name = "ProbCNNet4l"
     elif model == "fcn":
         if name_data == "cifar10":
             raise RuntimeError(f"Cifar10 not supported with given architecture {model}")
@@ -270,8 +284,15 @@ def runexp(
             net = ProbNNet4l(
                 rho_prior, prior_dist=prior_dist, device=device, init_net=net0
             ).to(device)
+            model_name = "ProbNNet4l"
     else:
         raise RuntimeError(f"Architecture {model} not supported")
+
+    # save net1
+    net0 = deepcopy(net)
+    dir_net1 = f"./saved_models/net1_{model_name}_" + exp_settings
+    torch.save(net0, dir_net1)
+
     # import ipdb
     # ipdb.set_trace()
     bound = PBBobj(
@@ -322,47 +343,50 @@ def runexp(
                 )
             )
 
-            stch_loss, stch_err = testStochastic(net, test_loader, bound, device=device)
-            post_loss, post_err = testPosteriorMean(
-                net, test_loader, bound, device=device
-            )
-            ens_loss, ens_err = testEnsemble(
-                net, test_loader, bound, device=device, samples=samples_ensemble
-            )
+            # stch_loss, stch_err = testStochastic(net, test_loader, bound, device=device)
+            # post_loss, post_err = testPosteriorMean(
+            #     net, test_loader, bound, device=device
+            # )
+            # ens_loss, ens_err = testEnsemble(
+            #     net, test_loader, bound, device=device, samples=samples_ensemble
+            # )
 
-            print(f"***Checkpoint results***")
-            print(
-                f"Objective, Dataset, Sigma, pmin, LR, momentum, LR_prior, momentum_prior, kl_penalty, dropout, Obj_train, Risk_CE, Risk_01, KL, Train NLL loss, Train 01 error, Stch loss, Stch 01 error, Post mean loss, Post mean 01 error, Ens loss, Ens 01 error, 01 error prior net, perc_train, perc_prior"
-            )
-            print(
-                f"{objective}, {name_data}, {sigma_prior :.5f}, {pmin :.5f}, {learning_rate :.5f}, {momentum :.5f}, {learning_rate_prior :.5f}, {momentum_prior :.5f}, {kl_penalty : .5f}, {dropout_prob :.5f}, {train_obj :.5f}, {risk_ce :.5f}, {risk_01 :.5f}, {kl :.5f}, {loss_ce_train :.5f}, {loss_01_train :.5f}, {stch_loss :.5f}, {stch_err :.5f}, {post_loss :.5f}, {post_err :.5f}, {ens_loss :.5f}, {ens_err :.5f}, {errornet0 :.5f}, {perc_train :.5f}, {perc_prior :.5f}"
-            )
+            # print(f"***Checkpoint results***")
+            # print(
+            #     f"Objective, Dataset, Sigma, pmin, LR, momentum, LR_prior, momentum_prior, kl_penalty, dropout, Obj_train, Risk_CE, Risk_01, KL, Train NLL loss, Train 01 error, Stch loss, Stch 01 error, Post mean loss, Post mean 01 error, Ens loss, Ens 01 error, 01 error prior net, perc_train, perc_prior"
+            # )
+            # print(
+            #     f"{objective}, {name_data}, {sigma_prior :.5f}, {pmin :.5f}, {learning_rate :.5f}, {momentum :.5f}, {learning_rate_prior :.5f}, {momentum_prior :.5f}, {kl_penalty : .5f}, {dropout_prob :.5f}, {train_obj :.5f}, {risk_ce :.5f}, {risk_01 :.5f}, {kl :.5f}, {loss_ce_train :.5f}, {loss_01_train :.5f}, {stch_loss :.5f}, {stch_err :.5f}, {post_loss :.5f}, {post_err :.5f}, {ens_loss :.5f}, {ens_err :.5f}, {errornet0 :.5f}, {perc_train :.5f}, {perc_prior :.5f}"
+            # )
 
-    train_obj, risk_ce, risk_01, kl, loss_ce_train, loss_01_train = (
-        computeRiskCertificates(
-            net,
-            toolarge,
-            bound,
-            device=device,
-            lambda_var=lambda_var,
-            train_loader=train2_loader,
-            whole_train=train2_1batch_loader,
-        )
-    )
+    # train_obj, risk_ce, risk_01, kl, loss_ce_train, loss_01_train = (
+    #     computeRiskCertificates(
+    #         net,
+    #         toolarge,
+    #         bound,
+    #         device=device,
+    #         lambda_var=lambda_var,
+    #         train_loader=train2_loader,
+    #         whole_train=train2_1batch_loader,
+    #     )
+    # )
 
-    stch_loss, stch_err = testStochastic(net, test_loader, bound, device=device)
-    post_loss, post_err = testPosteriorMean(net, test_loader, bound, device=device)
-    ens_loss, ens_err = testEnsemble(
-        net, test_loader, bound, device=device, samples=samples_ensemble
-    )
+    # stch_loss, stch_err = testStochastic(net, test_loader, bound, device=device)
+    # post_loss, post_err = testPosteriorMean(net, test_loader, bound, device=device)
+    # ens_loss, ens_err = testEnsemble(
+    #     net, test_loader, bound, device=device, samples=samples_ensemble
+    # )
 
-    print(f"***Final results***")
-    print(
-        f"Objective, Dataset, Sigma, pmin, LR, momentum, LR_prior, momentum_prior, kl_penalty, dropout, Obj_train, Risk_CE, Risk_01, KL, Train NLL loss, Train 01 error, Stch loss, Stch 01 error, Post mean loss, Post mean 01 error, Ens loss, Ens 01 error, 01 error prior net, perc_train, perc_prior"
-    )
-    print(
-        f"{objective}, {name_data}, {sigma_prior :.5f}, {pmin :.5f}, {learning_rate :.5f}, {momentum :.5f}, {learning_rate_prior :.5f}, {momentum_prior :.5f}, {kl_penalty : .5f}, {dropout_prob :.5f}, {train_obj :.5f}, {risk_ce :.5f}, {risk_01 :.5f}, {kl :.5f}, {loss_ce_train :.5f}, {loss_01_train :.5f}, {stch_loss :.5f}, {stch_err :.5f}, {post_loss :.5f}, {post_err :.5f}, {ens_loss :.5f}, {ens_err :.5f}, {errornet0 :.5f}, {perc_train :.5f}, {perc_prior :.5f}"
-    )
+    # print(f"***Final results***")
+    # print(
+    #     f"Objective, Dataset, Sigma, pmin, LR, momentum, LR_prior, momentum_prior, kl_penalty, dropout, Obj_train, Risk_CE, Risk_01, KL, Train NLL loss, Train 01 error, Stch loss, Stch 01 error, Post mean loss, Post mean 01 error, Ens loss, Ens 01 error, 01 error prior net, perc_train, perc_prior"
+    # )
+    # print(
+    #     f"{objective}, {name_data}, {sigma_prior :.5f}, {pmin :.5f}, {learning_rate :.5f}, {momentum :.5f}, {learning_rate_prior :.5f}, {momentum_prior :.5f}, {kl_penalty : .5f}, {dropout_prob :.5f}, {train_obj :.5f}, {risk_ce :.5f}, {risk_01 :.5f}, {kl :.5f}, {loss_ce_train :.5f}, {loss_01_train :.5f}, {stch_loss :.5f}, {stch_err :.5f}, {post_loss :.5f}, {post_err :.5f}, {ens_loss :.5f}, {ens_err :.5f}, {errornet0 :.5f}, {perc_train :.5f}, {perc_prior :.5f}"
+    # )
+
+    dir_net2 = f"./saved_models/net2_{model_name}_" + exp_settings
+    torch.save(net, dir_net2)
 
 
 def count_parameters(model):
