@@ -15,3 +15,5 @@ pbb/__pycache__/bounds.cpython-38.pyc
 pbb/__pycache__/__init__.cpython-38.pyc
 pbb/__init__.py
 .DS_Store
+*.out
+*.pt
