@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch.distributions as td
 from torchvision import datasets, transforms
 from torchvision.utils import make_grid
-from tqdm import tqdm, trange
+from tqdm import tqdm, trange     
 
 
 def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
