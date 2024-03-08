@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch.distributions as td
 from torchvision import datasets, transforms
 from torchvision.utils import make_grid
-from tqdm import tqdm, trange     
+from tqdm import tqdm, trange
 
 
 def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
@@ -348,15 +348,17 @@ class ProbLinear(nn.Module):
         else:
             raise RuntimeError(f"Wrong prior_dist {prior_dist}")
 
-        self.bias = dist(
-            bias_mu_init.clone(), bias_rho_init.clone(), device=device, fixed=False
-        )
         self.weight = dist(
             weights_mu_init.clone(),
             weights_rho_init.clone(),
             device=device,
             fixed=False,
         )
+
+        self.bias = dist(
+            bias_mu_init.clone(), bias_rho_init.clone(), device=device, fixed=False
+        )
+
         self.weight_prior = dist(
             weights_mu_prior.clone(),
             weights_rho_init.clone(),
