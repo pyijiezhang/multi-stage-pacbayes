@@ -123,8 +123,14 @@ def loadbatches(
         train_loader = torch.utils.data.DataLoader(
             train, batch_size=batch_size, sampler=all_train_sampler, shuffle=False
         )
+        train_1batch_loader = torch.utils.data.DataLoader(
+            train, batch_size=ntrain, sampler=all_train_sampler, **loader_kargs
+        )
         train1_loader = torch.utils.data.DataLoader(
             train, batch_size=batch_size, sampler=train1_sampler, shuffle=False
+        )
+        train1_1batch_loader = torch.utils.data.DataLoader(
+            train, batch_size=ntrain, sampler=train1_sampler, **loader_kargs
         )
         train2_loader = torch.utils.data.DataLoader(
             train, batch_size=batch_size, sampler=train2_sampler, shuffle=False
@@ -148,9 +154,11 @@ def loadbatches(
     # The same is done for test_1batch_loader
     return (
         train_loader,
-        test_loader,
+        train_1batch_loader,
         train1_loader,
-        train2_1batch_loader,
-        test_1batch_loader,
+        train1_1batch_loader,
         train2_loader,
+        train2_1batch_loader,
+        test_loader,
+        test_1batch_loader,
     )
