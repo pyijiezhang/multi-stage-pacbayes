@@ -94,7 +94,9 @@ def loadbatches(
         train_loader = torch.utils.data.DataLoader(
             train, batch_size=batch_size, sampler=train_sampler, **loader_kargs
         )
+        train_1batch_loader = None
         train1_loader = None
+        train1_1batch_loader = None
         train2_loader = train_loader
         train2_1batch_loader = torch.utils.data.DataLoader(
             train, batch_size=len(train_idx), sampler=train_sampler, **loader_kargs
