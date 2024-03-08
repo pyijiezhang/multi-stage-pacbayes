@@ -87,9 +87,10 @@ def compute_final_stats_risk_delta(
     pi_S_1,
     mc_samples_pi_S,
     mc_samples_pi_S_1,
-    input,
-    target,
-    n,  # size of S
+    input_S,
+    target_S,
+    input_S_2,
+    target_S_2,
     kl_approach3,
     mc_samples_pi_S_1_approach3,
     clamping=True,
@@ -100,12 +101,12 @@ def compute_final_stats_risk_delta(
     pi_S.eval()
     pi_S_1.eval()
 
-    n_2 = input.shape[0]
-
+    n_2 = input_S_2.shape[0]
+    n = input_S.shape[0]
     with torch.no_grad():
         kl = pi_S.compute_kl().detach().item()
         delta_js_expected = mcsampling_delta(
-            pi_S, pi_S_1, mc_samples_pi_S, mc_samples_pi_S_1, input, target
+            pi_S, pi_S_1, mc_samples_pi_S, mc_samples_pi_S_1, input_S_2, target_S_2
         )
 
         inv_2 = 0
@@ -123,7 +124,12 @@ def compute_final_stats_risk_delta(
         if kl_approach3 == None:
             wrong_net0 = (
                 get_loss_01(
-                    pi_S_1, input, target, sample=False, clamping=clamping, pmin=pmin
+                    pi_S_1,
+                    input_S_2,
+                    target_S_2,
+                    sample=False,
+                    clamping=clamping,
+                    pmin=pmin,
                 )
                 .sum()
                 .item()
@@ -136,7 +142,7 @@ def compute_final_stats_risk_delta(
             for _ in trange(mc_samples_pi_S_1_approach3):
                 loss_01_pi_0 += (
                     get_loss_01(
-                        pi_S_1, input, target, sample=True, clamping=True, pmin=1e-5
+                        pi_S_1, input_S, target_S, sample=True, clamping=True, pmin=1e-5
                     )
                     .float()
                     .mean()
