@@ -317,10 +317,40 @@ def main(
 
     n = len(train_loader.dataset)
 
-    pnet2 = torch.load(
-        dir_pnet1,
-        map_location=torch.device(device),
-    )
+    if model == "cnn":
+        if name_data == "cifar10":
+            if layers == 9:
+                pnet2 = ProbCNNet9l(
+                    rho_prior, prior_dist=prior_dist, device=device, init_pnet=pnet1
+                ).to(device)
+            elif layers == 13:
+                pnet2 = ProbCNNet13l(
+                    rho_prior, prior_dist=prior_dist, device=device, init_pnet=pnet1
+                ).to(device)
+            elif layers == 15:
+                pnet2 = ProbCNNet15l(
+                    rho_prior, prior_dist=prior_dist, device=device, init_pnet=pnet1
+                ).to(device)
+            else:
+                raise RuntimeError(f"Wrong number of layers {layers}")
+        else:
+            pnet2 = ProbCNNet4l(
+                rho_prior, prior_dist=prior_dist, device=device, init_pnet=pnet1
+            ).to(device)
+    elif model == "fcn":
+        if name_data == "cifar10":
+            raise RuntimeError(f"Cifar10 not supported with given architecture {model}")
+        elif name_data == "mnist":
+            pnet2 = ProbNNet4l(
+                rho_prior, prior_dist=prior_dist, device=device, init_pnet=pnet1
+            ).to(device)
+    else:
+        raise RuntimeError(f"Architecture {model} not supported")
+
+    # pnet2 = torch.load(
+    #     dir_pnet1,
+    #     map_location=torch.device(device),
+    # )
 
     bound = PBBobj(
         objective,

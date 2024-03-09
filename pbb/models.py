@@ -292,6 +292,7 @@ class ProbLinear(nn.Module):
         device="cuda",
         init_prior="weights",
         init_layer=None,
+        init_player=None,
         init_layer_prior=None,
     ):
         super().__init__()
@@ -301,9 +302,16 @@ class ProbLinear(nn.Module):
         # Set sigma for the truncated gaussian of weights
         sigma_weights = 1 / np.sqrt(in_features)
 
-        if init_layer:
+        if init_player:
+            weights_mu_init = init_player.weight.mu
+            bias_mu_init = init_player.bias.mu
+            weights_rho_init = init_player.weight.rho
+            bias_rho_init = init_player.bias.rho
+        elif init_layer:
             weights_mu_init = init_layer.weight
             bias_mu_init = init_layer.bias
+            weights_rho_init = torch.ones(out_features, in_features) * rho_prior
+            bias_rho_init = torch.ones(out_features) * rho_prior
         else:
             # Initialise distribution means using truncated normal
             weights_mu_init = trunc_normal_(
@@ -314,9 +322,8 @@ class ProbLinear(nn.Module):
                 2 * sigma_weights,
             )
             bias_mu_init = torch.zeros(out_features)
-
-        weights_rho_init = torch.ones(out_features, in_features) * rho_prior
-        bias_rho_init = torch.ones(out_features) * rho_prior
+            weights_rho_init = torch.ones(out_features, in_features) * rho_prior
+            bias_rho_init = torch.ones(out_features) * rho_prior
 
         if init_prior == "zeros":
             bias_mu_prior = torch.zeros(out_features)
@@ -443,6 +450,7 @@ class ProbConv2d(nn.Module):
         dilation=1,
         init_prior="weights",
         init_layer=None,
+        init_player=None,
         init_layer_prior=None,
     ):
         super().__init__()
@@ -460,9 +468,19 @@ class ProbConv2d(nn.Module):
             in_features *= k
         sigma_weights = 1 / np.sqrt(in_features)
 
-        if init_layer:
+        if init_player:
+            weights_mu_init = init_player.weight.mu
+            bias_mu_init = init_player.bias.mu
+            weights_rho_init = init_player.weight.rho
+            bias_rho_init = init_player.bias.rho
+        elif init_layer:
             weights_mu_init = init_layer.weight
             bias_mu_init = init_layer.bias
+            # set scale parameters
+            weights_rho_init = (
+                torch.ones(out_channels, in_channels, *self.kernel_size) * rho_prior
+            )
+            bias_rho_init = torch.ones(out_channels) * rho_prior
         else:
             weights_mu_init = trunc_normal_(
                 torch.Tensor(out_channels, in_channels, *self.kernel_size),
@@ -472,12 +490,11 @@ class ProbConv2d(nn.Module):
                 2 * sigma_weights,
             )
             bias_mu_init = torch.zeros(out_channels)
-
-        # set scale parameters
-        weights_rho_init = (
-            torch.ones(out_channels, in_channels, *self.kernel_size) * rho_prior
-        )
-        bias_rho_init = torch.ones(out_channels) * rho_prior
+            # set scale parameters
+            weights_rho_init = (
+                torch.ones(out_channels, in_channels, *self.kernel_size) * rho_prior
+            )
+            bias_rho_init = torch.ones(out_channels) * rho_prior
 
         if init_prior == "zeros":
             bias_mu_prior = torch.zeros(out_features)
@@ -648,7 +665,14 @@ class ProbNNet4l(nn.Module):
 
     """
 
-    def __init__(self, rho_prior, prior_dist="gaussian", device="cuda", init_net=None):
+    def __init__(
+        self,
+        rho_prior,
+        prior_dist="gaussian",
+        device="cuda",
+        init_net=None,
+        init_pnet=None,
+    ):
         super().__init__()
         self.l1 = ProbLinear(
             28 * 28,
@@ -657,6 +681,7 @@ class ProbNNet4l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.l1 if init_net else None,
+            init_player=init_pnet.l1 if init_pnet else None,
         )
         self.l2 = ProbLinear(
             600,
@@ -665,6 +690,7 @@ class ProbNNet4l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.l2 if init_net else None,
+            init_player=init_pnet.l2 if init_pnet else None,
         )
         self.l3 = ProbLinear(
             600,
@@ -673,6 +699,7 @@ class ProbNNet4l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.l3 if init_net else None,
+            init_player=init_pnet.l3 if init_pnet else None,
         )
         self.l4 = ProbLinear(
             600,
@@ -681,6 +708,7 @@ class ProbNNet4l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.l4 if init_net else None,
+            init_player=init_pnet.l4 if init_pnet else None,
         )
 
     def forward(self, x, sample=False, clamping=True, pmin=1e-4):
@@ -719,7 +747,14 @@ class ProbCNNet4l(nn.Module):
 
     """
 
-    def __init__(self, rho_prior, prior_dist="gaussian", device="cuda", init_net=None):
+    def __init__(
+        self,
+        rho_prior,
+        prior_dist="gaussian",
+        device="cuda",
+        init_net=None,
+        init_pnet=None,
+    ):
         super().__init__()
 
         self.conv1 = ProbConv2d(
@@ -730,6 +765,7 @@ class ProbCNNet4l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.conv1 if init_net else None,
+            init_player=init_pnet.conv1 if init_pnet else None,
         )
         self.conv2 = ProbConv2d(
             32,
@@ -739,6 +775,7 @@ class ProbCNNet4l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.conv2 if init_net else None,
+            init_player=init_pnet.conv2 if init_pnet else None,
         )
         self.fc1 = ProbLinear(
             9216,
@@ -747,6 +784,7 @@ class ProbCNNet4l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fc1 if init_net else None,
+            init_player=init_pnet.fc1 if init_pnet else None,
         )
         self.fc2 = ProbLinear(
             128,
@@ -755,6 +793,7 @@ class ProbCNNet4l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fc2 if init_net else None,
+            init_player=init_pnet.fc2 if init_pnet else None,
         )
 
     def forward(self, x, sample=False, clamping=True, pmin=1e-4):
@@ -851,7 +890,14 @@ class ProbCNNet9l(nn.Module):
 
     """
 
-    def __init__(self, rho_prior, prior_dist, device="cuda", init_net=None):
+    def __init__(
+        self,
+        rho_prior,
+        prior_dist,
+        device="cuda",
+        init_net=None,
+        init_pnet=None,
+    ):
         super().__init__()
         self.conv1 = ProbConv2d(
             in_channels=3,
@@ -862,6 +908,7 @@ class ProbCNNet9l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv1 if init_net else None,
+            init_player=init_pnet.conv1 if init_pnet else None,
         )
         self.conv2 = ProbConv2d(
             in_channels=32,
@@ -872,6 +919,7 @@ class ProbCNNet9l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv2 if init_net else None,
+            init_player=init_pnet.conv2 if init_pnet else None,
         )
         self.conv3 = ProbConv2d(
             in_channels=64,
@@ -882,6 +930,7 @@ class ProbCNNet9l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv3 if init_net else None,
+            init_player=init_pnet.conv3 if init_pnet else None,
         )
         self.conv4 = ProbConv2d(
             in_channels=128,
@@ -892,6 +941,7 @@ class ProbCNNet9l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv4 if init_net else None,
+            init_player=init_pnet.conv4 if init_pnet else None,
         )
         self.conv5 = ProbConv2d(
             in_channels=128,
@@ -902,6 +952,7 @@ class ProbCNNet9l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv5 if init_net else None,
+            init_player=init_pnet.conv5 if init_pnet else None,
         )
         self.conv6 = ProbConv2d(
             in_channels=256,
@@ -912,6 +963,7 @@ class ProbCNNet9l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv6 if init_net else None,
+            init_player=init_pnet.conv6 if init_pnet else None,
         )
         self.fcl1 = ProbLinear(
             4096,
@@ -920,6 +972,7 @@ class ProbCNNet9l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fcl1 if init_net else None,
+            init_player=init_pnet.fcl1 if init_pnet else None,
         )
         self.fcl2 = ProbLinear(
             1024,
@@ -928,6 +981,7 @@ class ProbCNNet9l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fcl2 if init_net else None,
+            init_player=init_pnet.fcl2 if init_pnet else None,
         )
         self.fcl3 = ProbLinear(
             512,
@@ -936,6 +990,7 @@ class ProbCNNet9l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fcl3 if init_net else None,
+            init_player=init_pnet.fcl3 if init_pnet else None,
         )
 
     def forward(self, x, sample=False, clamping=True, pmin=1e-4):
@@ -1069,7 +1124,9 @@ class ProbCNNet13l(nn.Module):
 
     """
 
-    def __init__(self, rho_prior, prior_dist, device="cuda", init_net=None):
+    def __init__(
+        self, rho_prior, prior_dist, device="cuda", init_net=None, init_pnet=None
+    ):
         super().__init__()
         self.conv1 = ProbConv2d(
             in_channels=3,
@@ -1080,6 +1137,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv1 if init_net else None,
+            init_player=init_pnet.conv1 if init_pnet else None,
         )
         self.conv2 = ProbConv2d(
             in_channels=32,
@@ -1090,6 +1148,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv2 if init_net else None,
+            init_player=init_pnet.conv2 if init_pnet else None,
         )
         self.conv3 = ProbConv2d(
             in_channels=64,
@@ -1100,6 +1159,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv3 if init_net else None,
+            init_player=init_pnet.conv3 if init_pnet else None,
         )
         self.conv4 = ProbConv2d(
             in_channels=128,
@@ -1110,6 +1170,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv4 if init_net else None,
+            init_player=init_pnet.conv4 if init_pnet else None,
         )
         self.conv5 = ProbConv2d(
             in_channels=128,
@@ -1120,6 +1181,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv5 if init_net else None,
+            init_player=init_pnet.conv5 if init_pnet else None,
         )
         self.conv6 = ProbConv2d(
             in_channels=256,
@@ -1130,6 +1192,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv6 if init_net else None,
+            init_player=init_pnet.conv6 if init_pnet else None,
         )
         self.conv7 = ProbConv2d(
             in_channels=256,
@@ -1140,6 +1203,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv7 if init_net else None,
+            init_player=init_pnet.conv7 if init_pnet else None,
         )
         self.conv8 = ProbConv2d(
             in_channels=256,
@@ -1150,6 +1214,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv8 if init_net else None,
+            init_player=init_pnet.conv8 if init_pnet else None,
         )
         self.conv9 = ProbConv2d(
             in_channels=512,
@@ -1160,6 +1225,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv9 if init_net else None,
+            init_player=init_pnet.conv9 if init_pnet else None,
         )
         self.conv10 = ProbConv2d(
             in_channels=512,
@@ -1170,6 +1236,7 @@ class ProbCNNet13l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv10 if init_net else None,
+            init_player=init_pnet.conv10 if init_pnet else None,
         )
         self.fcl1 = ProbLinear(
             2048,
@@ -1178,6 +1245,7 @@ class ProbCNNet13l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fcl1 if init_net else None,
+            init_player=init_pnet.fcl1 if init_pnet else None,
         )
         self.fcl2 = ProbLinear(
             1024,
@@ -1186,6 +1254,7 @@ class ProbCNNet13l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fcl2 if init_net else None,
+            init_player=init_pnet.fcl2 if init_pnet else None,
         )
         self.fcl3 = ProbLinear(
             512,
@@ -1194,6 +1263,7 @@ class ProbCNNet13l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fcl3 if init_net else None,
+            init_player=init_pnet.fcl3 if init_pnet else None,
         )
 
     def forward(self, x, sample=False, clamping=True, pmin=1e-4):
@@ -1344,7 +1414,9 @@ class ProbCNNet15l(nn.Module):
 
     """
 
-    def __init__(self, rho_prior, prior_dist, device="cuda", init_net=None):
+    def __init__(
+        self, rho_prior, prior_dist, device="cuda", init_net=None, init_pnet=None
+    ):
         super().__init__()
         # TODO
         self.conv1 = ProbConv2d(
@@ -1356,6 +1428,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv1 if init_net else None,
+            init_player=init_pnet.conv1 if init_pnet else None,
         )
         self.conv2 = ProbConv2d(
             in_channels=32,
@@ -1366,6 +1439,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv2 if init_net else None,
+            init_player=init_pnet.conv2 if init_pnet else None,
         )
         self.conv3 = ProbConv2d(
             in_channels=64,
@@ -1376,6 +1450,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv3 if init_net else None,
+            init_player=init_pnet.conv3 if init_pnet else None,
         )
         self.conv4 = ProbConv2d(
             in_channels=128,
@@ -1386,6 +1461,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv4 if init_net else None,
+            init_player=init_pnet.conv4 if init_pnet else None,
         )
         self.conv5 = ProbConv2d(
             in_channels=128,
@@ -1396,6 +1472,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv5 if init_net else None,
+            init_player=init_pnet.conv5 if init_pnet else None,
         )
         self.conv6 = ProbConv2d(
             in_channels=256,
@@ -1406,6 +1483,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv6 if init_net else None,
+            init_player=init_pnet.conv6 if init_pnet else None,
         )
         self.conv7 = ProbConv2d(
             in_channels=256,
@@ -1416,6 +1494,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv7 if init_net else None,
+            init_player=init_pnet.conv7 if init_pnet else None,
         )
         self.conv8 = ProbConv2d(
             in_channels=256,
@@ -1426,6 +1505,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv8 if init_net else None,
+            init_player=init_pnet.conv8 if init_pnet else None,
         )
         self.conv9 = ProbConv2d(
             in_channels=256,
@@ -1436,6 +1516,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv9 if init_net else None,
+            init_player=init_pnet.conv9 if init_pnet else None,
         )
         self.conv10 = ProbConv2d(
             in_channels=512,
@@ -1446,6 +1527,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv10 if init_net else None,
+            init_player=init_pnet.conv10 if init_pnet else None,
         )
         self.conv11 = ProbConv2d(
             in_channels=512,
@@ -1456,6 +1538,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv11 if init_net else None,
+            init_player=init_pnet.conv11 if init_pnet else None,
         )
         self.conv12 = ProbConv2d(
             in_channels=512,
@@ -1466,6 +1549,7 @@ class ProbCNNet15l(nn.Module):
             kernel_size=3,
             padding=1,
             init_layer=init_net.conv12 if init_net else None,
+            init_player=init_pnet.conv12 if init_pnet else None,
         )
         self.fcl1 = ProbLinear(
             2048,
@@ -1474,6 +1558,7 @@ class ProbCNNet15l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fcl1 if init_net else None,
+            init_player=init_pnet.fcl1 if init_pnet else None,
         )
         self.fcl2 = ProbLinear(
             1024,
@@ -1482,6 +1567,7 @@ class ProbCNNet15l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fcl2 if init_net else None,
+            init_player=init_pnet.fcl2 if init_pnet else None,
         )
         self.fcl3 = ProbLinear(
             512,
@@ -1490,6 +1576,7 @@ class ProbCNNet15l(nn.Module):
             prior_dist=prior_dist,
             device=device,
             init_layer=init_net.fcl3 if init_net else None,
+            init_player=init_pnet.fcl3 if init_pnet else None,
         )
 
     def forward(self, x, sample=False, clamping=True, pmin=1e-4):
