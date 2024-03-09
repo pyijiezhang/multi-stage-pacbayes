@@ -1,3 +1,4 @@
+import os
 import math
 from copy import deepcopy
 import numpy as np
@@ -216,6 +217,8 @@ def main(
         raise RuntimeError(f"Architecture {model} not supported")
 
     # save net0
+    if not os.path.exists("./saved_models"):
+        os.makedirs("./saved_models")
     dir_net0 = f"./saved_models/net0_" + exp_settings
     torch.save(net0, dir_net0)
 
