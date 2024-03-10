@@ -1739,6 +1739,7 @@ def trainPNNet(
     lambda_var=None,
     optimizer_lambda=None,
     verbose=False,
+    net0=None,
 ):
     """Train function for a probabilistic NN (including CNN)
 
@@ -1790,7 +1791,7 @@ def trainPNNet(
         data, target = data.to(pbobj.device), target.to(pbobj.device)
         net.zero_grad()
         bound, kl, _, loss, err = pbobj.train_obj(
-            net, data, target, lambda_var=lambda_var, clamping=clamping
+            net, data, target, lambda_var=lambda_var, clamping=clamping, net0=net0
         )
 
         bound.backward()

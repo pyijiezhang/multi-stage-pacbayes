@@ -41,6 +41,9 @@ def main(
     objective,
     prior_type,
     model,
+    use_delta_bound=False,
+    use_approach2=False,
+    use_approach3=False,
     sigma_prior=0.03,
     pmin=1e-5,
     learning_rate=0.005,
@@ -157,7 +160,9 @@ def main(
         batch size for experiments
     """
 
-    exp_settings = f"{name_data}_{objective}_{prior_type}_{kl_penalty}.pt"
+    exp_settings = (
+        f"{name_data}_{use_delta_bound}_{objective}_{prior_type}_{kl_penalty}.pt"
+    )
 
     # this makes the initialised prior the same for all bounds
     torch.manual_seed(7)
@@ -222,6 +227,10 @@ def main(
     dir_net0 = f"./saved_models/net0_" + exp_settings
     torch.save(net0, dir_net0)
 
+    dir_pnet0 = f"./saved_models/pnet0_" + exp_settings
+    torch.save(pnet1, dir_pnet0)
+    pnet0 = torch.load(dir_pnet0, map_location=torch.device(device))
+
     ##############################################################################################
     ### train data-dependent prior pnet1
     ##############################################################################################
@@ -283,6 +292,9 @@ def main(
             device,
             n_posterior=n1,
             n_bound=1,  # set to 1, not related to training
+            use_delta_bound=use_delta_bound,
+            use_approach2=use_approach2,
+            use_approach3=use_approach3,
         )
 
         if objective == "flamb":
@@ -308,6 +320,7 @@ def main(
                 lambda_var,
                 optimizer_lambda,
                 verbose,
+                net0=pnet0,
             )
 
         # save pnet1
@@ -366,6 +379,9 @@ def main(
         device,
         n_posterior=n,
         n_bound=1,  # set to 1, not related to training
+        use_delta_bound=use_delta_bound,
+        use_approach2=use_approach2,
+        use_approach3=use_approach3,
     )
 
     if objective == "flamb":
@@ -389,6 +405,7 @@ def main(
             lambda_var,
             optimizer_lambda,
             verbose,
+            net0=pnet1,
         )
 
     dir_pnet2 = f"./saved_models/net2_" + exp_settings

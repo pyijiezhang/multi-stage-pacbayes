@@ -4,6 +4,7 @@ import torch
 import torch.distributions as td
 from tqdm import tqdm, trange
 import torch.nn.functional as F
+from pbb.eval import get_loss_01
 
 
 class PBBobj:
@@ -53,6 +54,9 @@ class PBBobj:
         device="cuda",
         n_posterior=30000,
         n_bound=30000,
+        use_delta_bound=False,
+        use_approach2=False,
+        use_approach3=False,
     ):
         super().__init__()
         self.objective = objective
@@ -65,6 +69,9 @@ class PBBobj:
         self.kl_penalty = kl_penalty
         self.n_posterior = n_posterior
         self.n_bound = n_bound
+        self.use_delta_bound = use_delta_bound
+        self.use_approach2 = use_approach2
+        self.use_approach3 = use_approach3
 
     def compute_empirical_risk(self, outputs, targets, bounded=True):
         # compute negative log likelihood loss and bound it with pmin (if applicable)
@@ -73,47 +80,119 @@ class PBBobj:
             empirical_risk = (1.0 / (np.log(1.0 / self.pmin))) * empirical_risk
         return empirical_risk
 
-    def compute_losses(self, net, data, target, clamping=True):
+    def compute_losses(
+        self,
+        net,
+        data,
+        target,
+        clamping=True,
+        net0=None,
+        c1=1,
+        c2=1,
+        js=[-1 / 2, 1 / 2],
+    ):
         # compute both cross entropy and 01 loss
         # returns outputs of the network as well
+
         outputs = net(data, sample=True, clamping=clamping, pmin=self.pmin)
         loss_ce = self.compute_empirical_risk(outputs, target, clamping)
         pred = outputs.max(1, keepdim=True)[1]
         correct = pred.eq(target.view_as(pred)).sum().item()
         total = target.size(0)
         loss_01 = 1 - (correct / total)
-        return loss_ce, loss_01, outputs
+
+        if net0 and self.use_delta_bound:
+            net0.eval()
+            if self.use_approach2:
+                sample_net0 = False
+            elif self.use_approach3:
+                sample_net0 = True
+            loss_01_net0 = get_loss_01(
+                net0,
+                data,
+                target,
+                sample=sample_net0,
+                clamping=clamping,
+                pmin=self.pmin,
+            )
+            loss_ce_delta = F.nll_loss(outputs * c1, target, reduce=False)
+            loss_ce_delta -= loss_01_net0
+
+            loss_delta = []
+            for j in js:
+                loss_delta.append(F.sigmoid(c2 * (loss_ce_delta - j)).mean())
+            # print(loss_delta)
+        else:
+            loss_delta = None
+        return loss_ce, loss_01, outputs, loss_delta
 
     def bound(self, empirical_risk, kl, train_size, lambda_var=None):
         # compute training objectives
-        if self.objective == "fquad":
-            kl = kl * self.kl_penalty
-            repeated_kl_ratio = torch.div(
-                kl + np.log((2 * np.sqrt(train_size)) / self.delta), 2 * train_size
-            )
-            first_term = torch.sqrt(empirical_risk + repeated_kl_ratio)
-            second_term = torch.sqrt(repeated_kl_ratio)
-            train_obj = torch.pow(first_term + second_term, 2)
-        elif self.objective == "flamb":
-            kl = kl * self.kl_penalty
-            lamb = lambda_var.lamb_scaled
-            kl_term = torch.div(
-                kl + np.log((2 * np.sqrt(train_size)) / self.delta),
-                train_size * lamb * (1 - lamb / 2),
-            )
-            first_term = torch.div(empirical_risk, 1 - lamb / 2)
-            train_obj = first_term + kl_term
-        elif self.objective == "fclassic":
-            kl = kl * self.kl_penalty
-            kl_ratio = torch.div(
-                kl + np.log((2 * np.sqrt(train_size)) / self.delta), 2 * train_size
-            )
-            train_obj = empirical_risk + torch.sqrt(kl_ratio)
-        elif self.objective == "bbb":
-            # ipdb.set_trace()
-            train_obj = empirical_risk + self.kl_penalty * (kl / train_size)
+        if not self.use_delta_bound:
+            if self.objective == "fquad":
+                kl = kl * self.kl_penalty
+                repeated_kl_ratio = torch.div(
+                    kl + np.log((2 * np.sqrt(train_size)) / self.delta), 2 * train_size
+                )
+                first_term = torch.sqrt(empirical_risk + repeated_kl_ratio)
+                second_term = torch.sqrt(repeated_kl_ratio)
+                train_obj = torch.pow(first_term + second_term, 2)
+            elif self.objective == "flamb":
+                kl = kl * self.kl_penalty
+                lamb = lambda_var.lamb_scaled
+                kl_term = torch.div(
+                    kl + np.log((2 * np.sqrt(train_size)) / self.delta),
+                    train_size * lamb * (1 - lamb / 2),
+                )
+                first_term = torch.div(empirical_risk, 1 - lamb / 2)
+                train_obj = first_term + kl_term
+            elif self.objective == "fclassic":
+                kl = kl * self.kl_penalty
+                kl_ratio = torch.div(
+                    kl + np.log((2 * np.sqrt(train_size)) / self.delta), 2 * train_size
+                )
+                train_obj = empirical_risk + torch.sqrt(kl_ratio)
+            elif self.objective == "bbb":
+                # ipdb.set_trace()
+                train_obj = empirical_risk + self.kl_penalty * (kl / train_size)
+            else:
+                raise RuntimeError(f"Wrong objective {self.objective}")
         else:
-            raise RuntimeError(f"Wrong objective {self.objective}")
+            train_obj_total = 0
+            # print(empirical_risk)
+            for risk_term in empirical_risk:
+                if self.objective == "fquad":
+                    kl = kl * self.kl_penalty
+                    repeated_kl_ratio = torch.div(
+                        kl + np.log((2 * np.sqrt(train_size)) / self.delta),
+                        2 * train_size,
+                    )
+                    first_term = torch.sqrt(risk_term + repeated_kl_ratio)
+                    second_term = torch.sqrt(repeated_kl_ratio)
+                    train_obj = torch.pow(first_term + second_term, 2)
+                elif self.objective == "flamb":
+                    kl = kl * self.kl_penalty
+                    lamb = lambda_var.lamb_scaled
+                    kl_term = torch.div(
+                        kl + np.log((2 * np.sqrt(train_size)) / self.delta),
+                        train_size * lamb * (1 - lamb / 2),
+                    )
+                    first_term = torch.div(risk_term, 1 - lamb / 2)
+                    train_obj = first_term + kl_term
+                elif self.objective == "fclassic":
+                    kl = kl * self.kl_penalty
+                    kl_ratio = torch.div(
+                        kl + np.log((2 * np.sqrt(train_size)) / self.delta),
+                        2 * train_size,
+                    )
+                    train_obj = risk_term + torch.sqrt(kl_ratio)
+                elif self.objective == "bbb":
+                    # ipdb.set_trace()
+                    train_obj = risk_term + self.kl_penalty * (kl / train_size)
+                else:
+                    raise RuntimeError(f"Wrong objective {self.objective}")
+                train_obj_total += train_obj
+            train_obj = -1 + train_obj_total
         return train_obj
 
     def mcsampling(
@@ -130,7 +209,7 @@ class PBBobj:
                 cross_entropy_mc = 0.0
                 error_mc = 0.0
                 for i in range(self.mc_samples):
-                    loss_ce, loss_01, _ = self.compute_losses(
+                    loss_ce, loss_01, _, _ = self.compute_losses(
                         net, data_batch, target_batch, clamping
                     )
                     cross_entropy_mc += loss_ce
@@ -145,7 +224,9 @@ class PBBobj:
             cross_entropy_mc = 0.0
             error_mc = 0.0
             for i in range(self.mc_samples):
-                loss_ce, loss_01, _ = self.compute_losses(net, input, target, clamping)
+                loss_ce, loss_01, _, _ = self.compute_losses(
+                    net, input, target, clamping
+                )
                 cross_entropy_mc += loss_ce
                 error_mc += loss_01
                 # we average cross-entropy and 0-1 error over all MC samples
@@ -153,13 +234,19 @@ class PBBobj:
             error += error_mc / self.mc_samples
         return cross_entropy, error
 
-    def train_obj(self, net, input, target, clamping=True, lambda_var=None):
+    def train_obj(self, net, input, target, clamping=True, lambda_var=None, net0=None):
         # compute train objective and return all metrics
         outputs = torch.zeros(target.size(0), self.classes).to(self.device)
         kl = net.compute_kl()
-        loss_ce, loss_01, outputs = self.compute_losses(net, input, target, clamping)
-
-        train_obj = self.bound(loss_ce, kl, self.n_posterior, lambda_var)
+        loss_ce, loss_01, outputs, loss_delta = self.compute_losses(
+            net, input, target, clamping, net0=net0
+        )
+        # if self.use_delta_bound:
+        #     loss_ce = torch.tensor(loss_ce).sum()
+        if net0 and self.use_delta_bound:
+            train_obj = self.bound(loss_delta, kl, self.n_posterior, lambda_var)
+        else:
+            train_obj = self.bound(loss_ce, kl, self.n_posterior, lambda_var)
         return train_obj, kl / self.n_posterior, outputs, loss_ce, loss_01
 
     def compute_final_stats_risk(
