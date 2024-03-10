@@ -189,3 +189,30 @@ def solve_kl_sup(q, right_hand_side):
         return 1.0 - 1e-9
     else:
         return optimize.brentq(f, q, 1.0 - 1e-11)
+
+
+def get_mu(net):
+    return torch.cat(
+        [param.view(-1) for param in net.parameters() if param.requires_grad]
+    )
+
+
+def get_mu_pnet(net):
+    return torch.cat(
+        [
+            param.detach().view(-1)
+            for name, param in net.named_parameters()
+            if param.requires_grad and ("weight.mu" in name or "bias.mu" in name)
+        ]
+    )
+
+
+def get_sigma_pnet(net):
+    rho = torch.cat(
+        [
+            param.detach().view(-1)
+            for name, param in net.named_parameters()
+            if param.requires_grad and ("weight.rho" in name or "bias.rho" in name)
+        ]
+    )
+    return torch.log(torch.exp(rho) + 1)
