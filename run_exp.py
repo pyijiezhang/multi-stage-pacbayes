@@ -58,7 +58,7 @@ def main(
     initial_lamb=1.0,
     train_epochs=100,
     prior_dist="gaussian",
-    verbose=False,
+    verbose=True,
     device="cuda",
     prior_epochs=100,
     dropout_prob=0.2,
@@ -408,7 +408,7 @@ def main(
             net0=pnet1,
         )
 
-    dir_pnet2 = f"./saved_models/net2_" + exp_settings
+    dir_pnet2 = f"./saved_models/pnet2_" + exp_settings
     torch.save(pnet2, dir_pnet2)
 
 
